@@ -7,6 +7,8 @@ use std::time::Duration;
 pub struct Snoud {
 	channels: Vec<SoundChannel>,
 	sample_rate: u32,
+	sync_rate: u32,
+	since_sync: u32,
 }
 
 struct SoundChannel {
@@ -35,6 +37,11 @@ impl Iterator for Snoud {
 	type Item = i16;
 
 	fn next(&mut self) -> Option<Self::Item> {
+		self.since_sync += 1;
+		if self.since_sync == self.sync_rate {
+			self.since_sync = 0;
+			self.sync();
+		}
 		let mut out: Self::Item = 0;
 		for c in &mut self.channels {
 			if c.paused {
@@ -66,9 +73,12 @@ impl Source for Snoud {
 impl Snoud {
 	pub fn new(/* filenames: &[String] */) -> Self {
 		// let channels = filenames.iter().map(SoundChannel::new).collect();
+		let sample_rate = 48000;
 		Self {
-			sample_rate: 48000,
+			sample_rate,
 			channels: Vec::new(),
+			sync_rate: sample_rate / 20,
+			since_sync: 0,
 		}
 	}
 
@@ -77,5 +87,11 @@ impl Snoud {
 		let volume_sync = new.volume_sync.clone();
 		self.channels.push(new);
 		volume_sync
+	}
+
+	fn sync(&mut self) {
+		for c in &mut self.channels {
+			c.volume = *c.volume_sync.lock().unwrap();
+		}
 	}
 }

@@ -26,7 +26,7 @@ struct UIChannel {
 
 struct App {
 	channels: Vec<UIChannel>,
-	selected_channel: usize,
+	selected_index: usize,
 	_stream: OutputStream,
 	stream_handle: OutputStreamHandle,
 	quit: bool,
@@ -38,7 +38,7 @@ impl App {
 			.expect("Failed to create output stream");
 		Self {
 			channels: Vec::new(),
-			selected_channel: 0,
+			selected_index: 0,
 			_stream,
 			stream_handle,
 			quit: false,
@@ -85,7 +85,7 @@ impl App {
 		for (i, channel) in self.channels.iter().enumerate() {
 			println!(
 				"{}{}:\n {:.0}",
-				if i == self.selected_channel { ">" } else { " " },
+				if i == self.selected_index { ">" } else { " " },
 				&channel.name,
 				(channel.volume * 100.0)
 			);
@@ -106,16 +106,28 @@ impl App {
 
 		match event.code {
 			KeyCode::Char('q') => self.quit = true,
-			KeyCode::Up => {
-				self.selected_channel = match self.selected_channel {
-					0 => self.channels.len() - 1,
-					n => n - 1,
-				};
-			}
-			KeyCode::Down => {
-				self.selected_channel = (self.selected_channel + 1) % self.channels.len();
-			}
+			KeyCode::Up => self.select_prev(),
+			KeyCode::Down => self.select_next(),
+			KeyCode::Right => self.set_channel_volume(0.1),
+			KeyCode::Left => self.set_channel_volume(-0.1),
 			_ => (),
 		}
+	}
+
+	fn set_channel_volume(&mut self, delta: f32) {
+		let channel = self.channels.get_mut(self.selected_index).unwrap();
+		channel.volume = (channel.volume + delta).clamp(0., 2.);
+		*channel.internal_volume.lock().unwrap() = channel.volume;
+	}
+
+	fn select_prev(&mut self) {
+		self.selected_index = match self.selected_index {
+			0 => self.channels.len() - 1,
+			n => n - 1,
+		};
+	}
+
+	fn select_next(&mut self) {
+		self.selected_index = (self.selected_index + 1) % self.channels.len();
 	}
 }
