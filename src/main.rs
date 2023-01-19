@@ -1,15 +1,11 @@
-use crossterm::{
-	cursor::MoveTo,
-	event::{self, Event, KeyCode},
-	execute,
-	terminal::{self, Clear, ClearType},
-};
+use crossterm::cursor::MoveTo;
+use crossterm::event::{self, Event, KeyCode};
+use crossterm::terminal::{self, Clear, ClearType};
+use crossterm::ExecutableCommand;
 use rodio::{source::Source, OutputStream, OutputStreamHandle};
-use std::{
-	io::stdout,
-	sync::{Arc, Mutex},
-	time::Duration,
-};
+use std::io::stdout;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 mod sound;
 use sound::Snoud;
@@ -69,6 +65,8 @@ impl App {
 			.unwrap();
 
 		terminal::enable_raw_mode().unwrap();
+		stdout().execute(Clear(ClearType::All)).unwrap();
+
 		while !self.quit {
 			self.render();
 			self.input();
@@ -77,20 +75,17 @@ impl App {
 	}
 
 	fn render(&mut self) {
-		execute!(stdout(), Clear(ClearType::All), MoveTo(0, 0)).unwrap();
+		stdout().execute(MoveTo(0, 0)).unwrap();
 
-		terminal::disable_raw_mode().unwrap();
-		println!("Snoud!!");
-		println!("--------");
+		println!("Snoud - ambient sound player\n\r");
 		for (i, channel) in self.channels.iter().enumerate() {
 			println!(
-				"{}{}:\n {:.0}",
+				"{}{}:\r\n {:3.0}%\r\n",
 				if i == self.selected_index { ">" } else { " " },
 				&channel.name,
 				(channel.volume * 100.0)
 			);
 		}
-		terminal::enable_raw_mode().unwrap();
 	}
 
 	fn input(&mut self) {
