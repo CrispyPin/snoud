@@ -1,6 +1,7 @@
 use rodio::source::{Repeat, Source};
 use rodio::Decoder;
 use std::fs::File;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -19,7 +20,7 @@ struct SoundChannel {
 }
 
 impl SoundChannel {
-	fn new(name: &str) -> Self {
+	fn new(name: &PathBuf) -> Self {
 		let file = File::open(name).expect("File not found");
 		let source = Decoder::new(file)
 			.expect("Could not decode file")
@@ -71,8 +72,7 @@ impl Source for Snoud {
 }
 
 impl Snoud {
-	pub fn new(/* filenames: &[String] */) -> Self {
-		// let channels = filenames.iter().map(SoundChannel::new).collect();
+	pub fn new() -> Self {
 		let sample_rate = 48000;
 		Self {
 			sample_rate,
@@ -82,7 +82,7 @@ impl Snoud {
 		}
 	}
 
-	pub fn add_channel(&mut self, filename: &str) -> Arc<Mutex<f32>> {
+	pub fn add_channel(&mut self, filename: &PathBuf) -> Arc<Mutex<f32>> {
 		let new = SoundChannel::new(filename);
 		let volume_sync = new.volume_sync.clone();
 		self.channels.push(new);

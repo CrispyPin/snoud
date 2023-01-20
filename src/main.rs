@@ -3,6 +3,7 @@ use crossterm::event::{self, Event, KeyCode};
 use crossterm::terminal::{self, Clear, ClearType};
 use crossterm::ExecutableCommand;
 use rodio::{source::Source, OutputStream, OutputStreamHandle};
+use std::fs;
 use std::io::stdout;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -68,18 +69,17 @@ impl App {
 	}
 
 	fn run(&mut self) {
-		// TODO scan directory instead
-		let files: Vec<String> = vec![
-			"sound/rain.mp3".into(),
-			"sound/thunder.mp3".into(),
-			"sound/wind.mp3".into(),
-		];
+		let files: Vec<_> = fs::read_dir("sound")
+			.unwrap()
+			.flatten()
+			.filter(|f| f.file_type().unwrap().is_file())
+			.collect();
 
 		let mut snoud = Snoud::new();
-		for filename in files {
-			let internal_volume = snoud.add_channel(&filename);
+		for file in files {
+			let internal_volume = snoud.add_channel(&file.path());
 			let ui_channel = UIChannel {
-				name: filename,
+				name: file.file_name().to_string_lossy().into(),
 				volume: 100,
 				internal_volume,
 				muted: false,
@@ -108,7 +108,7 @@ impl App {
 		println!("Snoud - ambient sound player\n\r");
 		for (i, channel) in self.channels.iter().enumerate() {
 			println!(
-				"{selection}{name}:\r\n {volume:3.0}% {status:-<21}\r\n",
+				"{selection} {name}:\r\n  {volume:3.0}% {status:-<21}\r\n",
 				selection = if i == self.selected { ">" } else { " " },
 				name = &channel.name,
 				volume = channel.volume,
