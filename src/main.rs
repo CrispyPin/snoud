@@ -16,13 +16,39 @@ fn main() {
 
 struct UIChannel {
 	name: String,
-	volume: f32,
+	volume: i32,
 	internal_volume: Arc<Mutex<f32>>,
+	muted: bool,
+}
+
+impl UIChannel {
+	fn mute(&mut self) {
+		if self.muted {
+			self.sync();
+		} else {
+			*self.internal_volume.lock().unwrap() = 0.0;
+		}
+		self.muted = !self.muted;
+	}
+
+	fn get_vol(&self) -> f32 {
+		self.volume as f32 / 100.0
+	}
+
+	fn change_vol(&mut self, amt: i32) {
+		self.muted = false;
+		self.volume = (self.volume + amt).clamp(0, 200);
+		self.sync();
+	}
+
+	fn sync(&mut self) {
+		*self.internal_volume.lock().unwrap() = self.get_vol();
+	}
 }
 
 struct App {
 	channels: Vec<UIChannel>,
-	selected_index: usize,
+	selected: usize,
 	_stream: OutputStream,
 	stream_handle: OutputStreamHandle,
 	quit: bool,
@@ -34,7 +60,7 @@ impl App {
 			.expect("Failed to create output stream");
 		Self {
 			channels: Vec::new(),
-			selected_index: 0,
+			selected: 0,
 			_stream,
 			stream_handle,
 			quit: false,
@@ -54,8 +80,9 @@ impl App {
 			let internal_volume = snoud.add_channel(&filename);
 			let ui_channel = UIChannel {
 				name: filename,
-				volume: 1.0,
+				volume: 100,
 				internal_volume,
+				muted: false,
 			};
 			self.channels.push(ui_channel);
 		}
@@ -72,6 +99,7 @@ impl App {
 			self.input();
 		}
 		terminal::disable_raw_mode().unwrap();
+		println!("Exiting");
 	}
 
 	fn render(&mut self) {
@@ -80,10 +108,19 @@ impl App {
 		println!("Snoud - ambient sound player\n\r");
 		for (i, channel) in self.channels.iter().enumerate() {
 			println!(
-				"{}{}:\r\n {:3.0}%\r\n",
-				if i == self.selected_index { ">" } else { " " },
-				&channel.name,
-				(channel.volume * 100.0)
+				"{selection}{name}:\r\n {volume:3.0}% {status:-<21}\r\n",
+				selection = if i == self.selected { ">" } else { " " },
+				name = &channel.name,
+				volume = channel.volume,
+				status = if channel.muted {
+					"[Muted]".to_owned()
+				} else {
+					format!(
+						"{:=>width$}",
+						"|",
+						width = (channel.volume / 10 + 1) as usize
+					)
+				}
 			);
 		}
 	}
@@ -103,26 +140,21 @@ impl App {
 			KeyCode::Char('q') => self.quit = true,
 			KeyCode::Up => self.select_prev(),
 			KeyCode::Down => self.select_next(),
-			KeyCode::Right => self.set_channel_volume(0.1),
-			KeyCode::Left => self.set_channel_volume(-0.1),
+			KeyCode::Right => self.channels[self.selected].change_vol(10),
+			KeyCode::Left => self.channels[self.selected].change_vol(-10),
+			KeyCode::Char(' ' | 'm') => self.channels[self.selected].mute(),
 			_ => (),
 		}
 	}
 
-	fn set_channel_volume(&mut self, delta: f32) {
-		let channel = self.channels.get_mut(self.selected_index).unwrap();
-		channel.volume = (channel.volume + delta).clamp(0., 2.);
-		*channel.internal_volume.lock().unwrap() = channel.volume;
-	}
-
 	fn select_prev(&mut self) {
-		self.selected_index = match self.selected_index {
+		self.selected = match self.selected {
 			0 => self.channels.len() - 1,
 			n => n - 1,
 		};
 	}
 
 	fn select_next(&mut self) {
-		self.selected_index = (self.selected_index + 1) % self.channels.len();
+		self.selected = (self.selected + 1) % self.channels.len();
 	}
 }
