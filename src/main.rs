@@ -96,7 +96,7 @@ impl App {
 
 		self.sink.append(snoud);
 		self.sink.play();
-		self.change_vol(0);
+		self.sync_vol();
 
 		terminal::enable_raw_mode().unwrap();
 		stdout().execute(Clear(ClearType::All)).unwrap();
@@ -116,7 +116,7 @@ impl App {
 
 		println!("Snoud - ambient sound player\r");
 		println!(
-			"Master volume: {:3}%, {:10}\n\r",
+			"Master volume: {:3}% {:10}\n\r",
 			self.volume,
 			if self.playing {
 				"[Playing]"
@@ -158,8 +158,8 @@ impl App {
 			KeyCode::Left => self.channels[self.selected].change_vol(-10),
 			KeyCode::Char('m') => self.channels[self.selected].mute(),
 			KeyCode::Char(' ') => self.mute(),
-			KeyCode::Char('.') => self.change_vol(5),
-			KeyCode::Char(',') => self.change_vol(-5),
+			KeyCode::Char('.') => self.inc_vol(),
+			KeyCode::Char(',') => self.dec_vol(),
 			_ => (),
 		}
 	}
@@ -175,8 +175,26 @@ impl App {
 		self.selected = (self.selected + 1) % self.channels.len();
 	}
 
-	fn change_vol(&mut self, amount: i32) {
-		self.volume += amount;
+	fn inc_vol(&mut self) {
+		if self.volume < 15 {
+			self.volume += 1;
+		} else {
+			self.volume += 5;
+		}
+		self.sync_vol();
+	}
+
+	fn dec_vol(&mut self) {
+		if self.volume <= 15 {
+			self.volume -= 1;
+		} else {
+			self.volume -= 5;
+		}
+		self.sync_vol();
+	}
+
+	fn sync_vol(&mut self) {
+		self.volume = self.volume.clamp(0, 150);
 		self.sink.set_volume(self.volume as f32 / 100.0);
 	}
 
