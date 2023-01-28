@@ -1,8 +1,9 @@
-use crossterm::cursor::MoveTo;
+use crossterm::cursor::{self, MoveTo};
 use crossterm::event::{self, Event, KeyCode};
 use crossterm::terminal::{self, Clear, ClearType};
 use crossterm::ExecutableCommand;
-use rodio::{source::Source, OutputStream, OutputStreamHandle};
+use rodio::Sink;
+use rodio::{OutputStream, OutputStreamHandle};
 use std::fs;
 use std::io::stdout;
 use std::sync::{Arc, Mutex};
@@ -18,7 +19,7 @@ fn main() {
 struct UIChannel {
 	name: String,
 	volume: i32,
-	internal_volume: Arc<Mutex<f32>>,
+	volume_sync: Arc<Mutex<f32>>,
 	muted: bool,
 }
 
@@ -27,7 +28,7 @@ impl UIChannel {
 		if self.muted {
 			self.sync();
 		} else {
-			*self.internal_volume.lock().unwrap() = 0.0;
+			*self.volume_sync.lock().unwrap() = 0.0;
 		}
 		self.muted = !self.muted;
 	}
@@ -43,27 +44,33 @@ impl UIChannel {
 	}
 
 	fn sync(&mut self) {
-		*self.internal_volume.lock().unwrap() = self.get_vol();
+		*self.volume_sync.lock().unwrap() = self.get_vol();
 	}
 }
 
 struct App {
 	channels: Vec<UIChannel>,
 	selected: usize,
-	_stream: OutputStream,
-	stream_handle: OutputStreamHandle,
+	_stream: (OutputStream, OutputStreamHandle),
+	sink: Sink,
+	volume: i32,
+	playing: bool,
 	quit: bool,
 }
 
 impl App {
 	fn new() -> Self {
-		let (_stream, stream_handle) = OutputStream::try_default() //
+		let (stream, stream_handle) = OutputStream::try_default() //
 			.expect("Failed to create output stream");
+		let sink = Sink::try_new(&stream_handle).unwrap();
+
 		Self {
 			channels: Vec::new(),
 			selected: 0,
-			_stream,
-			stream_handle,
+			_stream: (stream, stream_handle),
+			sink,
+			playing: true,
+			volume: 20,
 			quit: false,
 		}
 	}
@@ -81,23 +88,25 @@ impl App {
 			let ui_channel = UIChannel {
 				name: file.file_name().to_string_lossy().into(),
 				volume: 100,
-				internal_volume,
+				volume_sync: internal_volume,
 				muted: false,
 			};
 			self.channels.push(ui_channel);
 		}
 
-		self.stream_handle
-			.play_raw(snoud.convert_samples())
-			.unwrap();
+		self.sink.append(snoud);
+		self.sink.play();
+		self.change_vol(0);
 
 		terminal::enable_raw_mode().unwrap();
 		stdout().execute(Clear(ClearType::All)).unwrap();
+		stdout().execute(cursor::Hide).unwrap();
 
 		while !self.quit {
 			self.render();
 			self.input();
 		}
+		stdout().execute(cursor::Show).unwrap();
 		terminal::disable_raw_mode().unwrap();
 		println!("Exiting");
 	}
@@ -105,7 +114,16 @@ impl App {
 	fn render(&mut self) {
 		stdout().execute(MoveTo(0, 0)).unwrap();
 
-		println!("Snoud - ambient sound player\n\r");
+		println!("Snoud - ambient sound player\r");
+		println!(
+			"Master volume: {:3}%, {:10}\n\r",
+			self.volume,
+			if self.playing {
+				"[Playing]"
+			} else {
+				"[Paused]"
+			}
+		);
 		for (i, channel) in self.channels.iter().enumerate() {
 			println!(
 				"{selection} {name}:\r\n  {volume:3.0}% {status:-<21}\r\n",
@@ -130,11 +148,7 @@ impl App {
 			return;
 		}
 
-		let event = if let Ok(Event::Key(keyevent)) = event::read() {
-			keyevent
-		} else {
-			return;
-		};
+		let Ok(Event::Key(event)) = event::read() else { return };
 
 		match event.code {
 			KeyCode::Char('q') => self.quit = true,
@@ -142,7 +156,10 @@ impl App {
 			KeyCode::Down => self.select_next(),
 			KeyCode::Right => self.channels[self.selected].change_vol(10),
 			KeyCode::Left => self.channels[self.selected].change_vol(-10),
-			KeyCode::Char(' ' | 'm') => self.channels[self.selected].mute(),
+			KeyCode::Char('m') => self.channels[self.selected].mute(),
+			KeyCode::Char(' ') => self.mute(),
+			KeyCode::Char('.') => self.change_vol(5),
+			KeyCode::Char(',') => self.change_vol(-5),
 			_ => (),
 		}
 	}
@@ -156,5 +173,19 @@ impl App {
 
 	fn select_next(&mut self) {
 		self.selected = (self.selected + 1) % self.channels.len();
+	}
+
+	fn change_vol(&mut self, amount: i32) {
+		self.volume += amount;
+		self.sink.set_volume(self.volume as f32 / 100.0);
+	}
+
+	fn mute(&mut self) {
+		self.playing = !self.playing;
+		if self.playing {
+			self.sink.play();
+		} else {
+			self.sink.pause();
+		}
 	}
 }
