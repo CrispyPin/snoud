@@ -141,6 +141,11 @@ impl App {
 				}
 			);
 		}
+		println!("Play/pause: Space\r");
+		println!("Master volume: [.] [,]\r");
+		println!("Select channel: Up/Down\r");
+		println!("Mute channel: M\r");
+		println!("Channel volume: Left/Right\r");
 	}
 
 	fn input(&mut self) {
