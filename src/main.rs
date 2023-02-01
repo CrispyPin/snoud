@@ -144,7 +144,7 @@ impl App {
 		println!("Play/pause: Space\r");
 		println!("Master volume: [.] [,]\r");
 		println!("Select channel: Up/Down\r");
-		println!("Mute channel: M\r");
+		println!("Mute channel: [M]\r");
 		println!("Channel volume: Left/Right\r");
 	}
 
@@ -153,18 +153,22 @@ impl App {
 			return;
 		}
 
-		let Ok(Event::Key(event)) = event::read() else { return };
-
-		match event.code {
-			KeyCode::Char('q') => self.quit = true,
-			KeyCode::Up => self.select_prev(),
-			KeyCode::Down => self.select_next(),
-			KeyCode::Right => self.channels[self.selected].change_vol(10),
-			KeyCode::Left => self.channels[self.selected].change_vol(-10),
-			KeyCode::Char('m') => self.channels[self.selected].mute(),
-			KeyCode::Char(' ') => self.mute(),
-			KeyCode::Char('.') => self.inc_vol(),
-			KeyCode::Char(',') => self.dec_vol(),
+		match event::read() {
+			Ok(Event::Resize(_, _)) => {
+				stdout().execute(Clear(ClearType::All)).unwrap();
+			}
+			Ok(Event::Key(event)) => match event.code {
+				KeyCode::Char('q') => self.quit = true,
+				KeyCode::Up => self.select_prev(),
+				KeyCode::Down => self.select_next(),
+				KeyCode::Right => self.channels[self.selected].change_vol(10),
+				KeyCode::Left => self.channels[self.selected].change_vol(-10),
+				KeyCode::Char('m') => self.channels[self.selected].mute(),
+				KeyCode::Char(' ') => self.mute(),
+				KeyCode::Char('.') => self.inc_vol(),
+				KeyCode::Char(',') => self.dec_vol(),
+				_ => (),
+			},
 			_ => (),
 		}
 	}
