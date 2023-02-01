@@ -84,14 +84,15 @@ impl App {
 
 		let mut snoud = Snoud::new();
 		for file in files {
-			let internal_volume = snoud.add_channel(&file.path());
-			let ui_channel = UIChannel {
-				name: file.file_name().to_string_lossy().into(),
-				volume: 100,
-				volume_sync: internal_volume,
-				muted: false,
-			};
-			self.channels.push(ui_channel);
+			if let Some(internal_volume) = snoud.add_channel(&file.path()) {
+				let ui_channel = UIChannel {
+					name: file.file_name().to_string_lossy().into(),
+					volume: 100,
+					volume_sync: internal_volume,
+					muted: false,
+				};
+				self.channels.push(ui_channel);
+			}
 		}
 
 		self.sink.append(snoud);

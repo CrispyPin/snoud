@@ -20,17 +20,15 @@ struct SoundChannel {
 }
 
 impl SoundChannel {
-	fn new(name: &PathBuf) -> Self {
+	fn new(name: &PathBuf) -> Option<Self> {
 		let file = File::open(name).expect("File not found");
-		let source = Decoder::new(file)
-			.expect("Could not decode file")
-			.repeat_infinite();
-		Self {
+		let source = Decoder::new(file).ok()?.repeat_infinite();
+		Some(Self {
 			source,
 			paused: false,
 			volume: 1.0,
 			volume_sync: Arc::new(Mutex::new(1.0)),
-		}
+		})
 	}
 }
 
@@ -82,11 +80,14 @@ impl Snoud {
 		}
 	}
 
-	pub fn add_channel(&mut self, filename: &PathBuf) -> Arc<Mutex<f32>> {
-		let new = SoundChannel::new(filename);
-		let volume_sync = new.volume_sync.clone();
-		self.channels.push(new);
-		volume_sync
+	pub fn add_channel(&mut self, filename: &PathBuf) -> Option<Arc<Mutex<f32>>> {
+		if let Some(new) = SoundChannel::new(filename) {
+			let volume_sync = new.volume_sync.clone();
+			self.channels.push(new);
+			Some(volume_sync)
+		} else {
+			None
+		}
 	}
 
 	fn sync(&mut self) {
