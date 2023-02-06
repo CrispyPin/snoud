@@ -4,10 +4,10 @@ use crossterm::terminal::{self, Clear, ClearType};
 use crossterm::ExecutableCommand;
 use rodio::Sink;
 use rodio::{OutputStream, OutputStreamHandle};
-use std::fs;
 use std::io::stdout;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use std::{env, fs};
 
 mod sound;
 use sound::Snoud;
@@ -76,8 +76,19 @@ impl App {
 	}
 
 	fn run(&mut self) {
-		let files: Vec<_> = fs::read_dir("sound")
-			.unwrap()
+		let exe = env::current_exe().unwrap();
+		let files: Vec<_> = fs::read_dir(exe.with_file_name("sound"))
+			.unwrap_or_else(|_err| {
+				// probably running from cargo
+				fs::read_dir(
+					exe.parent()
+						.unwrap()
+						.parent()
+						.unwrap()
+						.with_file_name("sound"),
+				)
+				.unwrap()
+			})
 			.flatten()
 			.filter(|f| f.file_type().unwrap().is_file())
 			.collect();
