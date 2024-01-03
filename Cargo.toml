@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 crossterm = "0.25.0"
-rodio = { version = "0.16.0", default_features = false, features = ["mp3"] }
+rodio = { version = "0.17.3", default_features = false, features = ["mp3"] }
 
 [target.'cfg(windows)'.build-dependencies]
 winres = "0.1.12"
